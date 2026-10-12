@@ -1376,7 +1376,7 @@ function updateFotoSetupBanner(){
 }
 
 // ═══ AI (Claude) ════════════════════════════════════════════════════════════
-async function analyzeWithClaude(file){
+async function analyzeWithClaudeOrig(file){
   if(!HB_AI) return {error:'Geen API key'};
   const base64 = await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});
   const mediaType = file.type || 'image/jpeg';
@@ -3019,6 +3019,50 @@ function fotoRelink(driveFiles){
     else{p.driveId=null;p.driveLink=null;p.driveThumbLink='';verdwenen++;}
   });
   return {relinked,verdwenen};
+}
+
+// ═══ AI-TAGS: robuuster ═════════════════════════════════════════════════════
+// Foto eerst verkleinen (sneller, goedkoper, onder de API-limiet), het model expliciet om alleen JSON vragen,
+// alle tekstblokken lezen en bij een fout het echte antwoord tonen.
+async function fotoVerklein(file,max){
+  max=max||1568;
+  try{
+    const bmp=await createImageBitmap(file);
+    const s=Math.min(1,max/Math.max(bmp.width,bmp.height));
+    if(s===1&&file.size<3500000&&/jpe?g|png|webp|gif/.test(file.type))return file;
+    const c=document.createElement('canvas');c.width=Math.max(1,Math.round(bmp.width*s));c.height=Math.max(1,Math.round(bmp.height*s));
+    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
+    return blob?new File([blob],file.name,{type:'image/jpeg'}):file;
+  }catch(e){return file;}
+}
+async function analyzeWithClaude(file){
+  if(!HB_AI) return {error:'Geen API key'};
+  file=await fotoVerklein(file);
+  const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});
+  const mediaType=file.type||'image/jpeg';
+  const prompt=`Analyseer deze foto van groepsaccommodatie Hoeve Wetermans (historische boerderij in Olst).
+
+Velden:
+- gebouw: precies één van ${JSON.stringify(settings.gebouwen)}
+- ruimte: korte omschrijving (badkamer/keuken/etc) of ""
+- type: precies één van ${JSON.stringify(settings.types)}
+- tags: maximaal 8 korte tags in het Nederlands, kleine letters
+
+Antwoord met uitsluitend één JSON-object, zonder uitleg en zonder markdown, bijvoorbeeld:
+{"gebouw":"...","ruimte":"...","type":"...","tags":["...","..."]}`;
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':HB_AI,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:aiModel(),max_tokens:1024,system:'Je labelt foto\'s voor een onderhoudsarchief. Antwoord altijd met alleen geldige JSON.',
+        messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mediaType,data:base64}},{type:'text',text:prompt}]}]})});
+    const data=await resp.json();
+    if(data.error) return {error:data.error.message||JSON.stringify(data.error)};
+    const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+    const m=text.match(/\{[\s\S]*\}/);
+    if(!m) return {error:'AI gaf geen JSON'+(data.stop_reason==='max_tokens'?' (antwoord afgekapt)':'')+': '+(text||'(leeg antwoord, stop: '+data.stop_reason+')').slice(0,200)};
+    let p;try{p=JSON.parse(m[0]);}catch(e){return {error:'AI-antwoord was geen geldige JSON: '+m[0].slice(0,200)};}
+    return {gebouw:p.gebouw||'Onbekend',ruimte:p.ruimte||'',type:p.type||'Algemeen',tags:Array.isArray(p.tags)?p.tags.slice(0,8).map(t=>String(t).toLowerCase()):[]};
+  }catch(e){return {error:'Netwerkfout: '+e.message};}
 }
 
 // ═══ SETTINGS ═══════════════════════════════════════════════════════════════

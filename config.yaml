@@ -1,5 +1,5 @@
 name: Hoeve Beheer
-version: "1.0.0"
+version: "1.0.1"
 slug: hoeve_beheer
 description: Beheer-app Hoeve Wetermans (taken, bezetting, schoonmaak, projecten, foto's) – data lokaal op de Pi
 url: https://github.com/coesjanssen-lab/hoeve-beheer-addon
