@@ -15,6 +15,16 @@ Iedere Home Assistant-gebruiker (ook zonder beheerdersrechten) kan de app openen
 Na een Tommy-import of "Maak schoonmaakrooster" gaat het rooster direct naar Home
 Assistant (event `hoeve_beheer_rooster`). Er is geen webhook-adres nodig.
 
+## Logboek vanuit automatiseringen
+Een regel toevoegen aan het logboek zonder de app te openen (alleen bereikbaar via Home Assistant):
+
+    POST api/logboek
+    {"werk": "📌 Besluit: ...", "note": "...", "datum": "2026-10-21", "uitv": "Diederik", "kosten": ""}
+
+`werk` is verplicht; de rest is optioneel. Dezelfde regel (zelfde werk, datum en notitie) wordt
+niet twee keer toegevoegd. `GET api/logboek` geeft de bestaande regels terug. In de app staat de
+nieuwe regel na het volgende synchroniseren; de app overschrijft hem niet.
+
 ## Back-up
 - Automatisch: de gegevens zitten in elke Home Assistant-back-up.
 - Handmatig: in de app → Instellingen → **Download back-up** / **Back-up terugzetten**.

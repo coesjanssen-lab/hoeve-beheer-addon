@@ -73,6 +73,20 @@ rep("""      <input type="password" class="settings-input" id="set-apikey" place
     """      <input type="hidden" id="set-apikey" value=""><div class="settings-help" style="color:var(--text)">De API-sleutel staat veilig in Home Assistant: <strong>Instellingen → Apps → Hoeve Beheer → Configuratie</strong>. Hij komt niet in de browser.</div>""")
 # 4. geen service worker (werkt niet achter Home Assistant)
 rep("navigator.serviceWorker.register('sw.js')", "Promise.resolve()")
+# 4b. logboekregels die via POST /api/logboek zijn toegevoegd niet overschrijven bij opslaan
+rep("""    if(foundId) driveAppDataFileId = foundId;
+    const cleanDocs = {};""",
+    """    if(foundId) driveAppDataFileId = foundId;
+    // Logboekregels die buiten de app zijn toegevoegd (POST /api/logboek) niet overschrijven
+    if(driveAppDataFileId){
+      const remote = await getDriveFileContent(driveAppDataFileId);
+      if(remote && Array.isArray(remote.logboek)){
+        const known = new Set(logboek.map(l=>l.id));
+        const extra = remote.logboek.filter(l=>l && l.bron==='api' && !known.has(l.id));
+        if(extra.length){logboek = extra.concat(logboek);try{renderLogboek();}catch(e){}}
+      }
+    }
+    const cleanDocs = {};""")
 # 5. account / teksten
 rep("const DRIVE_ACCOUNT='coesjanssen@gmail.com';", "const DRIVE_ACCOUNT='hoeve-server';")
 h = h.replace("coesjanssen@gmail.com", "de Hoeve-server")
