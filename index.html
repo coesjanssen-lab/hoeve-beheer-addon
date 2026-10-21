@@ -2466,6 +2466,15 @@ async function flushAppDataSync(){
     // Zoek altijd opnieuw + dedupliceer
     const foundId = await cleanupDuplicateFiles(APPDATA_DRIVE_FILENAME, driveDocsFolderId);
     if(foundId) driveAppDataFileId = foundId;
+    // Logboekregels die buiten de app zijn toegevoegd (POST /api/logboek) niet overschrijven
+    if(driveAppDataFileId){
+      const remote = await getDriveFileContent(driveAppDataFileId);
+      if(remote && Array.isArray(remote.logboek)){
+        const known = new Set(logboek.map(l=>l.id));
+        const extra = remote.logboek.filter(l=>l && l.bron==='api' && !known.has(l.id));
+        if(extra.length){logboek = extra.concat(logboek);try{renderLogboek();}catch(e){}}
+      }
+    }
     const cleanDocs = {};
     Object.keys(docs).forEach(s=>{cleanDocs[s] = (docs[s]||[]).map(d=>({...d, url: d.driveLink || ''}));});
     const appData = {v:1, taken, bezetting, logboek, contacten: [...contacten], docs: cleanDocs, nextId, bezNextId, tommy: (typeof tommyInfo!=='undefined'?tommyInfo:{}), updated: new Date().toISOString()};

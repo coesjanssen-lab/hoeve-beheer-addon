@@ -212,6 +212,42 @@ async function handle(req, res) {
     return send(res, 200, { ok: true });
   }
 
+  // Logboek: regel toevoegen (voor Claude en automatiseringen) of de regels lezen.
+  // De regel komt in app-data.json; de app pakt hem bij het volgende opslaan/synchroniseren op.
+  if (p === '/api/logboek' && (req.method === 'POST' || req.method === 'GET')) {
+    const f = Object.values(index.files).find(x => x.name === 'app-data.json' && !x.trashed);
+    if (!f) return err(res, 404, 'app-data.json niet gevonden; open eerst de app');
+    const fp = path.join(BLOBS, f.id);
+    let data;
+    try { data = JSON.parse(fs.readFileSync(fp, 'utf8')); } catch (e) { return err(res, 500, 'app-data.json is onleesbaar'); }
+    if (!data || typeof data !== 'object') return err(res, 500, 'app-data.json heeft een onverwacht formaat');
+    if (!Array.isArray(data.logboek)) data.logboek = [];
+    if (req.method === 'GET') return send(res, 200, { logboek: data.logboek });
+    const b = JSON.parse((await readBody(req)).toString() || '{}');
+    const werk = String(b.werk || '').trim();
+    if (!werk) return err(res, 400, 'Veld "werk" ontbreekt');
+    const entry = {
+      id: Date.now(),
+      datum: /^\d{4}-\d{2}-\d{2}$/.test(b.datum || '') ? b.datum : now().slice(0, 10),
+      werk,
+      uitv: String(b.uitv || 'Diederik'),
+      kosten: String(b.kosten || ''),
+      note: String(b.note || ''),
+      bron: 'api'
+    };
+    const dup = data.logboek.find(l => l.werk === entry.werk && l.datum === entry.datum && l.note === entry.note);
+    if (dup) return send(res, 200, { ok: true, duplicate: true, id: dup.id });
+    while (data.logboek.some(l => l.id === entry.id)) entry.id++;
+    data.logboek.unshift(entry);
+    data.updated = now();
+    const body = Buffer.from(JSON.stringify(data, null, 2));
+    fs.writeFileSync(fp + '.tmp', body);
+    fs.renameSync(fp + '.tmp', fp);
+    f.size = body.length; f.modifiedTime = now();
+    await saveIndex();
+    return send(res, 200, { ok: true, id: entry.id });
+  }
+
   // Back-up: alle data (zonder add-on-instellingen) als .tar.gz
   if (p === '/api/backup' && req.method === 'GET') {
     await writing;
