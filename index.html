@@ -268,7 +268,7 @@ main{max-width:1080px;margin:0 auto;padding:22px 22px 60px}
 <div id="tab-planning">
   <div id="bezetting-banner" class="banner banner-blue" style="display:none">
     <div style="font-size:18px">🏡</div>
-    <div><div style="font-size:13px;font-weight:700;color:var(--blue)" id="banner-title"></div><div style="font-size:11px;color:var(--text-light)" id="banner-sub"></div></div>
+    <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:var(--blue)" id="banner-title"></div><div id="banner-sub"></div></div>
   </div>
   <div class="stats">
     <div class="stat" style="background:#EDD9C0"><div class="stat-num" style="color:#7C5C3A" id="stat-open">0</div><div class="stat-lbl" style="color:#7C5C3A">Open</div></div>
@@ -1534,9 +1534,14 @@ function renderTaken(){
   document.getElementById('stat-urgent').textContent=taken.filter(t=>t.prio==='Hoog'&&t.status!=='Gereed').length;
   document.getElementById('tab-count').textContent=taken.filter(t=>t.status!=='Gereed').length;
   document.getElementById('count-info').textContent=`${lijst.length} van ${taken.length} taken · actiefopdehoeve.nl`;
-  const vol=bezetting.filter(b=>new Date(b.tot)>=new Date()).sort((a,b)=>new Date(a.van)-new Date(b.van))[0];
+  // Eerstvolgende 3 bezettingen (lopende + komende), op aankomstdatum
+  const vols=bezetting.filter(b=>new Date(b.tot)>=new Date()).sort((a,b)=>new Date(a.van)-new Date(b.van)).slice(0,3);
   const ban=document.getElementById('bezetting-banner');
-  if(vol){ban.style.display='flex';document.getElementById('banner-title').textContent=`Volgende bezetting: ${vol.gasten}`;document.getElementById('banner-sub').textContent=`${fmt(vol.van)} → ${fmt(vol.tot)} · ${vol.pers} pers.`;}else ban.style.display='none';
+  if(vols.length){
+    ban.style.display='flex';
+    document.getElementById('banner-title').textContent=vols.length===1?'Volgende bezetting':`Volgende ${vols.length} bezettingen`;
+    document.getElementById('banner-sub').innerHTML=vols.map((b,i)=>`<div style="display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline;padding:${i?'5px 0 0':'3px 0 0'};${i?'margin-top:5px;border-top:1px solid #c8d8e6;':''}"><span style="font-size:13px;font-weight:${i?600:700};color:var(--blue)">${escapeHtml(b.gasten)}</span><span style="font-size:11px;color:var(--text-light)">${fmt(b.van)} → ${fmt(b.tot)} · ${escapeHtml(b.pers??'?')} pers.</span></div>`).join('');
+  }else ban.style.display='none';
 }
 
 function renderPersonBtns(containerId,selected,onSelect){
